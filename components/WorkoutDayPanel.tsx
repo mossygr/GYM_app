@@ -286,3 +286,23 @@ export default function WorkoutDayPanel({ day }: Props) {
                     ))}
                   </div>
 
+                  {/* add set */}
+                  <div className="mt-3">
+                    <button
+                      onClick={() => addSet(ex.id)}
+                      className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-[15px] hover:bg-neutral-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Προσθήκη σετ
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
