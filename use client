@@ -1,0 +1,58 @@
+'use client';
+import { useEffect, useState, PropsWithChildren } from 'react';
+
+type Props = PropsWithChildren<{
+  title: string;
+  subtitle?: string;
+  defaultOpen?: boolean;
+
+  // Προαιρετικά για “μία ανοιχτή τη φορά”
+  groupId?: string;    // ίδιο για όλες τις κάρτες που ανήκουν στο ίδιο group (π.χ. "exercises")
+  selfId?: string;     // μοναδικό id της κάρτας
+  singleInGroup?: boolean; // αν true: όταν ανοίγω εγώ, κλείνουν οι άλλες στο group
+}>;
+
+export default function CollapsibleCard({
+  title, subtitle, defaultOpen = false, children,
+  groupId, selfId, singleInGroup = false
+}: Props) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  // Αν είμαστε σε “single group”, κλείσε όταν κάποιος άλλος ανοίξει
+  useEffect(() => {
+    if (!singleInGroup || !groupId || !selfId) return;
+    const evtName = `collapsible:open:${groupId}`;
+    const handler = (e: any) => {
+      if (e?.detail?.selfId && e.detail.selfId !== selfId) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener(evtName, handler);
+    return () => window.removeEventListener(evtName, handler);
+  }, [singleInGroup, groupId, selfId]);
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && singleInGroup && groupId && selfId) {
+      const evtName = `collapsible:open:${groupId}`;
+      window.dispatchEvent(new CustomEvent(evtName, { detail: { selfId } }));
+    }
+  }
+
+  return (
+    <div className="rounded-2xl shadow p-4 bg-white border">
+      <button type="button" className="w-full text-left" onClick={toggle}>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="font-semibold">{title}</div>
+            {subtitle && <div className="text-sm text-gray-500">{subtitle}</div>}
+          </div>
+          <div className="text-sm text-gray-500">{open ? '−' : '+'}</div>
+        </div>
+      </button>
+      {open && <div className="mt-3 space-y-3">{children}</div>}
+    </div>
+  );
+}
+
