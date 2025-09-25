@@ -11,8 +11,9 @@ export default function CalendarPageClient() {
         <div className="mx-auto max-w-6xl space-y-4">
           <UserBar />
           <div className="grid md:grid-cols-2 gap-6">
-            <section>
-              <h1 className="text-2xl font-bold mb-4">Ημερολόγιο</h1>
+            {/* app-like κάρτα: κινητό = 1 στήλη, desktop = 2 στήλες */}
+            <section className="rounded-2xl bg-white shadow-sm border border-neutral-200 p-4 md:p-5">
+              <h1 className="text-2xl font-bold mb-3">Ημερολόγιο</h1>
               <Calendar
                 onSelect={(day: any) => {
                   const event = new CustomEvent('select-day', { detail: day });
@@ -20,8 +21,9 @@ export default function CalendarPageClient() {
                 }}
               />
             </section>
-            <section>
-              <h2 className="text-xl font-semibold mb-4">Λεπτομέρειες ημέρας</h2>
+
+            <section className="rounded-2xl bg-white shadow-sm border border-neutral-200 p-4 md:p-5">
+              <h2 className="text-xl font-semibold mb-3">Λεπτομέρειες ημέρας</h2>
               <ClientSelectedDay />
             </section>
           </div>
@@ -30,3 +32,4 @@ export default function CalendarPageClient() {
     </SessionProvider>
   );
 }
+

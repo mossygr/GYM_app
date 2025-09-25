@@ -1,26 +1,45 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../../lib/db';
 
-// POST /api/workouts/:id/exercises
-export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const body = await req.json();
-  const { nameGr } = body;
-  const workoutDayId = params.id;
+/**
+ * POST /api/workouts/:id/exercises
+ * body: { nameGr: string, nameEn?: string }
+ * returns: created exercise (id, order, nameGr, nameEn)
+ */
+export async function POST(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const dayId = params.id;
+    const { nameGr, nameEn } = await req.json();
 
-  // next order
-  const maxOrder = await prisma.exercise.aggregate({
-    _max: { order: true },
-    where: { workoutDayId, deletedAt: null }
-  });
+    if (!nameGr || typeof nameGr !== 'string') {
+      return NextResponse.json({ error: 'nameGr is required' }, { status: 400 });
+    }
 
-  const ex = await prisma.exercise.create({
-    data: {
-      workoutDayId,
-      nameGr,
-      order: (maxOrder._max.order || 0) + 1
-    },
-    include: { sets: true }
-  });
+    const last = await prisma.exercise.findFirst({
+      where: { workoutDayId: dayId, deletedAt: null },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+    const nextOrder = (last?.order ?? 0) + 1;
 
-  return NextResponse.json(ex, { status: 201 });
+    const created = await prisma.exercise.create({
+      data: {
+        workoutDayId: dayId,
+        order: nextOrder,
+        nameGr,
+        nameEn: nameEn ?? null,
+        deletedAt: null,
+      },
+      select: { id: true, order: true, nameGr: true, nameEn: true },
+    });
+
+    return NextResponse.json(created, { status: 201 });
+  } catch (err) {
+    console.error('Error creating exercise:', err);
+    return NextResponse.json({ error: 'internal_error' }, { status: 500 });
+  }
 }
+

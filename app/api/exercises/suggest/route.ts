@@ -1,31 +1,38 @@
-// app/api/exercises/suggest/route.ts
 import { NextResponse } from 'next/server';
+// relative import για να μην σκάει με το alias @
 import { prisma } from '../../../../lib/db';
 
-// Accent-insensitive "fold"
-function fold(input: string) {
-  return input.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
+/**
+ * GET /api/exercises/suggest?q=term&limit=8
+ * Response shape: { items: [{ id: string, name: string }] }
+ */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const q = (searchParams.get('q') || '').trim();
-  const limit = Number(searchParams.get('limit') || 8);
+  const rawQ = (searchParams.get('q') ?? '').trim();
+  const rawLimit = Number(searchParams.get('limit') ?? 8);
 
-  // Παίρνουμε ΜΟΝΑΔΙΚΑ ονόματα (distinct) χωρίς groupBy/filters που σπάνε
+  // απλό guard
+  if (!rawQ) return NextResponse.json({ items: [] });
+
+  const q = rawQ;
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(50, Math.max(1, rawLimit))
+    : 8;
+
+  // φέρε μέχρι 200 γραμμές, πάρε μοναδικά ονόματα, κράτα τα πρώτα 'limit'
   const rows = await prisma.exercise.findMany({
-    where: { deletedAt: null },
+    where: {
+      deletedAt: null,
+      nameGr: { contains: q, mode: 'insensitive' },
+    },
     select: { nameGr: true },
-    distinct: ['nameGr'],
+    orderBy: { nameGr: 'asc' },
+    take: 200,
   });
 
-  const fq = fold(q);
-  const list = rows
-    .map(r => r.nameGr)
-    .filter(Boolean)
-    .filter(name => (q ? fold(name!).includes(fq) : true))
-    .slice(0, limit);
+  const uniqueNames = Array.from(new Set(rows.map(r => r.nameGr))).slice(0, limit);
+  const items = uniqueNames.map(name => ({ id: name, name }));
 
-  return NextResponse.json(list);
+  return NextResponse.json({ items }, { status: 200 });
 }
 

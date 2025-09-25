@@ -10,6 +10,7 @@ type Props = PropsWithChildren<{
   onToggle?: (next: boolean) => void;
   rightSlot?: React.ReactNode;    // actions στη δεξιά πλευρά (αν θες)
   tone?: 'plain' | 'subtle';      // οπτικό θέμα
+  className?: string;
 }>;
 
 export default function CollapsibleCard({
@@ -20,7 +21,8 @@ export default function CollapsibleCard({
   onToggle,
   rightSlot,
   children,
-  tone = 'subtle'
+  tone = 'subtle',
+  className = '',
 }: Props) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const isOpen = open ?? internalOpen;
@@ -36,6 +38,7 @@ export default function CollapsibleCard({
       className={[
         'rounded-2xl border',
         tone === 'subtle' ? 'bg-white/80 border-neutral-200 shadow-sm' : 'bg-white border-neutral-200',
+        className,
       ].join(' ')}
     >
       <button

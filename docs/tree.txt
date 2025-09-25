@@ -1,0 +1,86 @@
+.
+├── app
+│   ├── api
+│   │   ├── auth
+│   │   │   └── [...nextauth]
+│   │   │       └── route.ts
+│   │   ├── days
+│   │   │   └── [id]
+│   │   │       └── route.ts
+│   │   ├── days[id]
+│   │   ├── exercises
+│   │   │   ├── [id]
+│   │   │   │   ├── route.ts
+│   │   │   │   └── sets
+│   │   │   │       └── route.ts
+│   │   │   └── suggest
+│   │   │       └── route.ts
+│   │   ├── sets
+│   │   │   └── [id]
+│   │   │       └── route.ts
+│   │   └── workouts
+│   │       ├── [id]
+│   │       │   ├── exercises
+│   │       │   │   └── route.ts
+│   │       │   └── route.ts
+│   │       └── route.ts
+│   ├── (dashboard)
+│   │   └── calendar
+│   │       ├── CalendarPageClient.tsx
+│   │       ├── ClientSelectedDay.tsx
+│   │       └── page.tsx
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── login
+│       └── page.tsx
+├── bootstrap_revert.py
+├── components
+│   ├── Calendar.tsx
+│   ├── CollapsibleCard.tsx
+│   ├── gym
+│   │   ├── AddExerciseInline.tsx
+│   │   └── ExerciseCard.tsx
+│   ├── InlineField.tsx
+│   ├── UserBar.tsx
+│   └── WorkoutDayPanel.tsx
+├── .dockerignore
+├── docs
+│   ├── app_features.yaml
+│   ├── db_schema.sql
+│   ├── envinfo.txt
+│   ├── errors_log.yaml
+│   ├── tree.txt
+│   └── versions.txt
+├── .env
+├── .env.example
+├── exports
+│   ├── backup_before_reset.dump
+│   ├── backup_workouts_2025-09-25_0002.sql
+│   ├── backup_workouts_2025-09-25_0010.sql
+│   ├── backup_workouts_2025-09-25_0752.sql
+│   ├── backup_workouts_2025-09-25_0812.sql
+│   ├── sets_export.csv
+│   └── sets_export.json
+├── .gitignore
+├── lib
+│   ├── db.ts
+│   └── utils.ts
+├── manual_insert_from_yaml.sql
+├── middleware.ts
+├── next-env.d.ts
+├── package.json
+├── package-lock.json
+├── postcss.config.js
+├── prisma
+│   └── schema.prisma
+├── scripts
+│   ├── import_yaml.ts
+│   ├── normalize_yaml.ts
+│   └── seed.ts
+├── seed_from_yaml_custom.sql
+├── structure.txt
+├── tailwind.config.js
+├── tsconfig.json
+└── use client
+
+26 directories, 57 files
