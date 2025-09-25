@@ -1,0 +1,54 @@
+errors:
+  - id: 001
+    context: "Seed αρχείο"
+    error: "column \"deletedAt\" is of type timestamp but expression is of type text"
+    cause: "Προσπάθεια εισαγωγής NULL/κενής τιμής ως text"
+    fix: "Χρήση NULL αντί για string ('')"
+
+  - id: 002
+    context: "Seed αρχείο"
+    error: "column \"reps\" is of type integer but expression is of type text"
+    cause: "Οι επαναλήψεις ('reps') περνούσαν σαν string αντί για αριθμό"
+    fix: "Μετατροπή σε integer"
+
+  - id: 003
+    context: "Seed αρχείο"
+    error: "column \"kg\" is of type double precision but expression is of type text"
+    cause: "Το 'Σωματικό βάρος' δεν είναι αριθμός"
+    fix: "Όπου δεν υπάρχουν κιλά → NULL, και σχόλιο στο notes"
+
+  - id: 004
+    context: "DB query"
+    error: "role \"root\" does not exist"
+    cause: "psql προσπάθησε να συνδεθεί ως root"
+    fix: "Χρήση explicit χρήστη: postgresql://gym:gympass@localhost:5432/gymdb"
+
+  - id: 005
+    context: "Front-end"
+    error: "React Context is unavailable in Server Components"
+    cause: "Χρήση client-only component σε server component"
+    fix: "Προσθήκη 'use client' στην κορυφή component"
+
+  - id: 006
+    context: "Front-end AddExercise"
+    error: "Module not found: Can't resolve '@/components/gym/AddExerciseInline'"
+    cause: "Λείπει το component ή λάθος import"
+    fix: "Δημιουργήθηκε/προστέθηκε σωστό αρχείο AddExerciseInline.tsx"
+
+  - id: 007
+    context: "InlineField"
+    error: "TypeError: onSave is not a function"
+    cause: "Το prop onSave δεν περνιόταν από parent"
+    fix: "Περάστηκε σωστή συνάρτηση από WorkoutDayPanel"
+
+  - id: 008
+    context: "Suggest"
+    error: "Δεν εμφανιζόταν προτεινόμενη άσκηση"
+    cause: "API route υπήρχε αλλά δεν συνέδεε με DB"
+    fix: "Φτιάχτηκε route /api/exercises/suggest και τώρα επιστρέφει σωστά αποτελέσματα"
+
+  - id: 009
+    context: "API AddExercise"
+    error: "Module not found: Can't resolve '../../../../lib/db'"
+    cause: "Λάθος relative path"
+    fix: "Διορθώθηκε σε '../../../../../lib/db' ή χρήση alias '@/lib/db'"

@@ -1,0 +1,32 @@
+app_features:
+  database:
+    - Οι πίνακες User, WorkoutDay, Exercise, Set δουλεύουν σωστά
+    - Τα seed δεδομένα έχουν περαστεί (19/09, 22/09, 23/09) με ασκήσεις, σετ, κιλά, σχόλια
+    - DeletedAt υποστηρίζει soft-delete και χρειάζεται προσοχή να μην «κρύβονται» ασκήσεις κατά λάθος
+
+  backend:
+    - Υπάρχουν API routes:
+      - /api/auth/[...nextauth] → login/logout/session
+      - /api/workouts → φέρνει ημέρες/προπονήσεις
+      - /api/exercises/suggest → επιστρέφει προτεινόμενες ασκήσεις
+      - /api/workouts/[id]/exercises → προσθήκη νέας άσκησης σε συγκεκριμένη ημέρα
+    - Το Prisma δουλεύει και συνδέεται στη βάση
+    - Δεν πρέπει να αλλάξει το schema χωρίς migration, αλλιώς θα σπάσουν τα seed και τα queries
+
+  frontend:
+    - Calendar view εμφανίζει ημέρες και επιλεγμένη προπόνηση
+    - WorkoutDayPanel δείχνει ασκήσεις, σετ, κιλά, σχόλια
+    - Μπορείς να προσθέσεις άσκηση μέσω + (χρησιμοποιεί suggest)
+    - Μπορείς να προσθέσεις σετ μέσα στην άσκηση
+    - Inline edit στα πεδία δουλεύει (onBlur → αποθηκεύει)
+    - Font size μεγαλύτερο για καλύτερη αναγνωσιμότητα
+    - Responsive layout (μοιάζει με app σε κινητό/desktop)
+    - Δεν πρέπει να χαλάσει η ροή:
+      - Calendar → Day → Exercises → Sets
+      - Suggest κατά την προσθήκη άσκησης
+      - InlineField για επεξεργασία τιμών
+
+  deployment:
+    - Τρέχει με `npm run dev -H 0.0.0.0`
+    - Χρειάζεται το .env με DATABASE_URL σωστό
+    - Προσοχή στα relative imports, ιδανικά χρήση alias "@/lib/db"
