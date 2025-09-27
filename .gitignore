@@ -1,23 +1,26 @@
+# Node
 node_modules
-.next
-.env
-.env.local
-dist
-/root/backup
-*.bak.*
-*.log
 npm-debug.log*
 yarn-error.log*
 pnpm-lock.yaml
-backup_now.tgz
+
+# Next.js
+.next
+out
+
+# Env
+.env
+.env.*
+
+# Backups / Dumps / Archives
+/root/backup
 *.tgz
 *.tar.gz
 *.zip
 *.sql
 *.dump
-backup_now.tgz
-*.tgz
-*.tar.gz
-*.zip
-*.sql
-*.dump
+*.bak.*
+
+# OS
+.DS_Store
+Thumbs.db
