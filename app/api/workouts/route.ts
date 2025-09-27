@@ -1,70 +1,101 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '../../../lib/db';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-// GET /api/workouts?from=YYYY-MM-DD&to=YYYY-MM-DD
+/** Μετατροπές DB → UI σχήμα */
+function mapDay(db: any) {
+  return {
+    id: db.id,
+    userId: db.userId ?? null,
+    date: db.date,
+    program: db.program ?? null,
+    notes: db.notes ?? null,
+    deletedAt: db.deletedAt ?? null,
+    createdAt: db.createdAt,
+    updatedAt: db.updatedAt,
+    exercises: (db.exercises ?? []).map((ex: any) => ({
+      id: ex.id,
+      workoutDayId: ex.workoutDayId,
+      order: ex.order,
+      // ενιαίο όνομα για το UI
+      name: ex.nameGr ?? ex.name ?? "",
+      deletedAt: ex.deletedAt ?? null,
+      createdAt: ex.createdAt,
+      updatedAt: ex.updatedAt,
+      sets: (ex.sets ?? []).map((s: any) => ({
+        id: s.id,
+        exerciseId: s.exerciseId,
+        order: s.order,
+        // ενιαία ονόματα πεδίων για το UI
+        weight: s.kg,          // DB: kg → UI: weight
+        reps: s.reps,
+        note: s.notes ?? null, // DB: notes → UI: note
+        deletedAt: s.deletedAt ?? null,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      })),
+    })),
+  };
+}
+
+/** Κάνει normalize την ημερομηνία σε 00:00:00 UTC */
+function startOfDayUTC(d: Date) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+}
+
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const from = searchParams.get('from');
-  const to = searchParams.get('to');
+  try {
+    const { searchParams } = new URL(req.url);
+    const fromStr = searchParams.get("from");
+    const toStr = searchParams.get("to");
 
-  const where: any = { deletedAt: null };
-  if (from && to) where.date = { gte: new Date(from), lt: new Date(to) };
+    if (!fromStr || !toStr) {
+      return NextResponse.json({ error: "Missing from/to" }, { status: 400 });
+    }
 
-  // Φέρνουμε ΟΛΕΣ τις μέρες του εύρους με ασκήσεις/σετ.
-  // Σειρά: πρώτα η ημερομηνία, μετά createdAt ώστε να μπορούμε να κρατήσουμε τον πιο πρόσφατο ανά ημέρα.
-  const days = await prisma.workoutDay.findMany({
-    where,
-    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-    include: {
-      exercises: {
-        where: { deletedAt: null },
-        orderBy: { order: 'asc' },
-        include: {
-          sets: { where: { deletedAt: null }, orderBy: { order: 'asc' } },
+    const from = startOfDayUTC(new Date(fromStr));
+    const to = startOfDayUTC(new Date(toStr));
+    // inclusive εύρος: [from, toEnd)
+    const toEnd = new Date(to);
+    toEnd.setUTCDate(toEnd.getUTCDate() + 1);
+
+    const rows = await prisma.workoutDay.findMany({
+      where: {
+        date: {
+          gte: from,
+          lt: toEnd,
         },
       },
-    },
-  });
+      orderBy: { date: "asc" },
+      include: { exercises: { orderBy: { order: "asc" }, include: { sets: { orderBy: { order: "asc" } } } } },
+    });
 
-  // DEDUPE ανά YYYY-MM-DD: κρατάμε το ΤΕΛΕΥΤΑΙΟ για κάθε μέρα (άρα τον πιο πρόσφατο createdAt).
-  const byDate = new Map<string, any>();
-  for (const d of days) {
-    const key = d.date.toISOString().slice(0, 10); // YYYY-MM-DD
-    byDate.set(key, d); // overwrite => στο τέλος μένει ο πιο πρόσφατος για την ημέρα
+    return NextResponse.json(rows.map(mapDay));
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
   }
-
-  const deduped = Array.from(byDate.values()).sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
-  );
-
-  return NextResponse.json(deduped);
 }
 
-// (Προαιρετικό, όπως το είχες)
 export async function POST(req: Request) {
-  const body = await req.json();
-  const { date, program, exercises } = body;
-  const created = await prisma.workoutDay.create({
-    data: {
-      date: new Date(date),
-      program,
-      exercises: {
-        create: (exercises || []).map((ex: any, i: number) => ({
-          order: ex.order ?? i + 1,
-          nameGr: ex.nameGr,
-          nameEn: ex.nameEn,
-          sets: {
-            create: (ex.sets || []).map((s: any, j: number) => ({
-              order: s.order ?? j + 1,
-              kg: s.kg,
-              reps: s.reps,
-              notes: s.notes,
-            })),
-          },
-        })),
-      },
-    },
-  });
-  return NextResponse.json(created, { status: 201 });
-}
+  try {
+    const body = await req.json();
+    const dateStr: string | undefined = body?.date;
+    const program: string | null = body?.program ?? null;
 
+    if (!dateStr) return NextResponse.json({ error: "Missing date" }, { status: 400 });
+
+    const date = startOfDayUTC(new Date(dateStr));
+
+    const day = await prisma.workoutDay.create({
+      data: {
+        date,
+        program, // required στο schema σου – αν είναι NOT NULL, δώσε default αν λείπει
+        exercises: { create: [] },
+      },
+      include: { exercises: { include: { sets: true } } },
+    });
+
+    return NextResponse.json(mapDay(day), { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
+  }
+}

@@ -1,24 +1,24 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-type Params = { params: { id: string } };
-
-// Create set: POST /api/exercises/:id/sets
-export async function POST(req: Request, { params }: Params) {
+// POST /api/sets
+// body: { exerciseId: string, weight?: number|null, kg?: number|null, reps?: number|null, note?: string|null, notes?: string|null }
+export async function POST(req: Request) {
   try {
-    const exerciseId = params.id;
+    const body = await req.json();
+    const exerciseId: string | undefined = body?.exerciseId;
     if (!exerciseId) {
-      return NextResponse.json({ error: "Missing exercise id" }, { status: 400 });
+      return NextResponse.json({ error: "Missing exerciseId" }, { status: 400 });
     }
 
-    const body = await req.json();
-    // Δεκτά: null ή αριθμός. Επιτρέπουμε και 0 (χρήσιμο placeholder).
-    const rawW = body?.weight;
+    // Back-compat: δέξου weight ή kg, note ή notes
+    const rawW = (body?.weight ?? body?.kg);
     const rawR = body?.reps;
-    const note: string | null = body?.note ?? null;
+    const rawN = (body?.note ?? body?.notes);
 
     const weight = (rawW === null || rawW === "" || rawW === undefined) ? null : Number(rawW);
     const reps   = (rawR === null || rawR === "" || rawR === undefined) ? null : Number(rawR);
+    const note: string | null = (rawN === undefined || rawN === "") ? null : String(rawN);
 
     if (weight !== null && !Number.isFinite(weight)) {
       return NextResponse.json({ error: "Invalid weight" }, { status: 400 });
@@ -27,7 +27,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Invalid reps" }, { status: 400 });
     }
 
-    // order = στο τέλος
+    // order → τελευταίο
     const nextOrder = (await prisma.set.count({ where: { exerciseId } })) + 1;
 
     const created = await prisma.set.create({
@@ -40,7 +40,7 @@ export async function POST(req: Request, { params }: Params) {
       },
     });
 
-    // Map σε UI fields
+    // Επιστροφή με UI-friendly ονόματα
     return NextResponse.json({
       id: created.id,
       exerciseId: created.exerciseId,

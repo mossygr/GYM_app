@@ -1,24 +1,17 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '../../../../lib/db';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const day = await prisma.workoutDay.findUnique({
-    where: { id: params.id },
-    include: {
-      exercises: { include: { sets: true }, orderBy: { order: 'asc' } }
-    }
-  });
-  if (!day || day.deletedAt) return NextResponse.json({ message: 'Not found' }, { status: 404 });
-  return NextResponse.json(day);
-}
+type Ctx = { params: { id: string } };
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const body = await req.json();
-  const updated = await prisma.workoutDay.update({ where: { id: params.id }, data: body });
-  return NextResponse.json(updated);
-}
-
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const updated = await prisma.workoutDay.update({ where: { id: params.id }, data: { deletedAt: new Date() } });
-  return NextResponse.json(updated);
+export async function DELETE(_req: Request, { params }: Ctx) {
+  try {
+    const id = params.id;
+    // Hard delete children first for FK safety
+    await prisma.set.deleteMany({ where: { exercise: { workoutDayId: id } } });
+    await prisma.exercise.deleteMany({ where: { workoutDayId: id } });
+    await prisma.workoutDay.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
+  }
 }

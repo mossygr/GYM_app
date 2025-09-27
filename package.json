@@ -10,6 +10,8 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@iconify/react": "^6.0.2",
     "@prisma/client": "^5.0.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.544.0",
@@ -17,15 +19,20 @@
     "next-auth": "^4.24.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "yaml": "^2.8.1"
+    "react-hook-form": "^7.63.0",
+    "react-icons": "^5.5.0",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
     "@types/node": "24.5.2",
     "@types/react": "19.1.13",
-    "autoprefixer": "^10.4.0",
-    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.21",
+    "daisyui": "^5.1.23",
+    "js-yaml": "^4.1.0",
+    "postcss": "^8.5.6",
     "prisma": "^5.0.0",
-    "tailwindcss": "^3.4.0",
+    "tailwindcss": "^3.4.17",
     "tsx": "^4.7.0",
     "typescript": "^5.0.0"
   }

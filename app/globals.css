@@ -4,3 +4,10 @@
 
 html, body { height: 100%; }
 body { background: theme('colors.m3-bg'); }
+
+/* styles/globals.css */
+.input { @apply border rounded-xl px-3 py-2 bg-white dark:bg-neutral-900 outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-neutral-700; }
+.btn-primary { @apply inline-flex items-center justify-center rounded-xl px-3 py-2 border bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition; }
+.btn-secondary { @apply inline-flex items-center justify-center rounded-xl px-3 py-2 border bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition; }
+.badge { @apply inline-flex items-center rounded-full border px-2 py-0.5 text-xs bg-white dark:bg-neutral-900; }
+.badge-solid { @apply bg-black text-white dark:bg-white dark:text-black; }

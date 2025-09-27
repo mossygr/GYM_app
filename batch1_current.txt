@@ -1,0 +1,827 @@
+# Batch1 snapshot  2025-09-26T13:47:05+02:00
+
+## TREE (σχετικό):
+ - app/(dashboard)/day/[date]/page.tsx
+ - components/SetRow.tsx
+ - components/ExerciseCard.tsx
+ - styles/globals.css
+ - lib/types.ts
+ - lib/api.ts
+
+## FILE CONTENTS
+
+
+===== FILE: app/(dashboard)/day/[date]/page.tsx =====
+(size=15295B sha256=f97912ab60baab4c4f877c2cae76000ba9ca4c24baae56603c481c5a99077041)
+// app/(dashboard)/day/[date]/page.tsx
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { WorkoutDayModel, ExerciseModel, SetInput } from "@/lib/types";
+import { fetchDay, addExercise, addSet, renameExercise, deleteExercise, updateSet, deleteSet } from "@/lib/api";
+import { computeTotals } from "@/lib/format";
+import { useShortcuts } from "@/hooks/use-shortcuts";
+import DayHeader from "@/components/DayHeader";
+import EmptyState from "@/components/EmptyState";
+import { CardSkeleton } from "@/components/Skeletons";
+import ExerciseCard from "@/components/ExerciseCard";
+import SetRow from "@/components/SetRow";
+import InlineAddExercise from "@/components/InlineAddExercise";
+
+type EditingSetState = { id: string; weight: number; reps: number; note: string | null } | null;
+
+export default function DayPage() {
+  const params = useParams();
+  const date = String((params as any).date);
+
+  const [day, setDay] = useState<WorkoutDayModel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameVal, setRenameVal] = useState("");
+  const [confirmDeleteExerciseId, setConfirmDeleteExerciseId] = useState<string | null>(null);
+
+  const [editingSet, setEditingSet] = useState<EditingSetState>(null);
+  const [confirmDeleteSetId, setConfirmDeleteSetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setError(null);
+    fetchDay(date)
+      .then(d => { if (active) setDay(d); })
+      .catch(e => { if (active) setError(String(e)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [date]);
+
+  const totals = useMemo(() => computeTotals(day?.exercises ?? []), [day]);
+
+  useShortcuts({ a: () => document.getElementById("add-exercise-input")?.focus() });
+
+  async function handleAddExercise(name: string) {
+    if (!day) return;
+    setBusy(true);
+    const tempId = `tmp-ex-${Date.now()}`;
+    const optimistic: ExerciseModel = { id: tempId, name, sets: [] };
+    setDay({ ...day, exercises: [...day.exercises, optimistic] });
+    try {
+      const saved = await addExercise(day.id, name);
+      setDay(prev => prev ? { ...prev, exercises: prev.exercises.map(ex => ex.id === tempId ? saved : ex) } : prev);
+    } catch (e) {
+      setDay(prev => prev ? { ...prev, exercises: prev.exercises.filter(ex => ex.id !== tempId) } : prev);
+      alert(`Αποτυχία προσθήκης άσκησης\n${e}`);
+    } finally { setBusy(false); }
+  }
+
+  async function handleAddSet(exerciseId: string, data: SetInput) {
+    if (!day) return;
+    const tempId = `tmp-set-${Date.now()}`;
+    setDay(prev => prev ? {
+      ...prev,
+      exercises: prev.exercises.map(ex => ex.id === exerciseId
+        ? { ...ex, sets: [...ex.sets, { id: tempId, weight: data.weight, reps: data.reps, note: data.note ?? null }] }
+        : ex),
+    } : prev);
+    try {
+      await addSet(exerciseId, data);
+      const fresh = await fetchDay(date);
+      setDay(fresh);
+    } catch (e) {
+      setDay(prev => prev ? {
+        ...prev,
+        exercises: prev.exercises.map(ex => ex.id === exerciseId ? { ...ex, sets: ex.sets.filter(s => s.id !== tempId) } : ex),
+      } : prev);
+      alert(`Αποτυχία προσθήκης σετ\n${e}`);
+    }
+  }
+
+  async function handleRenameExercise(exId: string) {
+    if (!day) return;
+    const newName = renameVal.trim(); if (!newName) return;
+    const prev = day;
+    setDay({ ...day, exercises: day.exercises.map(ex => ex.id === exId ? { ...ex, name: newName } : ex) });
+    setRenamingId(null); setRenameVal("");
+    try { await renameExercise(exId, newName); }
+    catch (e) { setDay(prev); alert(`Αποτυχία μετονομασίας\n${e}`); }
+  }
+  async function handleDeleteExercise(exId: string) {
+    if (!day) return;
+    const prev = day; setConfirmDeleteExerciseId(null);
+    setDay({ ...day, exercises: day.exercises.filter(ex => ex.id !== exId) });
+    try { await deleteExercise(exId); }
+    catch (e) { setDay(prev); alert(`Αποτυχία διαγραφής άσκησης\n${ε}`); }
+  }
+
+  async function handleSaveSet() {
+    if (!day || !editingSet) return;
+    const { id, weight, reps, note } = editingSet;
+    const prev = day;
+    setDay({
+      ...day,
+      exercises: day.exercises.map(ex => ({ ...ex, sets: ex.sets.map(s => s.id === id ? { ...s, weight, reps, note } : s) })),
+    });
+    setEditingSet(null);
+    try { await updateSet(id, { weight, reps, note: note ?? "" }); }
+    catch (e) { setDay(prev); alert(`Αποτυχία ενημέρωσης σετ\n${e}`); }
+  }
+  async function handleDeleteSet() {
+    if (!day || !confirmDeleteSetId) return;
+    const sid = confirmDeleteSetId; const prev = day; setConfirmDeleteSetId(null);
+    setDay({ ...day, exercises: day.exercises.map(ex => ({ ...ex, sets: ex.sets.filter(s => s.id !== sid) })) });
+    try { await deleteSet(sid); } catch (e) { setDay(prev); alert(`Αποτυχία διαγραφής σετ\n${e}`); }
+  }
+
+  return (
+    <div className="day-page max-w-5xl mx-auto px-4 md:px-6 py-6 space-y-6">
+      {loading && (<><div className="h-10" /><CardSkeleton /><CardSkeleton /></>)}
+
+      {!loading && error && (
+        <EmptyState title="Σφάλμα" subtitle={error}
+          action={<button className="btn-secondary" onClick={() => location.reload()}>Δοκίμασε ξανά</button>} />
+      )}
+
+      {!loading && !error && day && (
+        <>
+          <DayHeader date={day.date} setsCount={totals.setsCount} volume={totals.volume} />
+
+          <div className="flex items-center gap-2">
+            <InlineAddExercise onAdd={handleAddExercise} />
+            <span className="text-sm" style={{color:"#6b7280"}}>(Συντόμευση: A)</span>
+          </div>
+
+          <div className="space-y-3 md:space-y-4">
+            {day.exercises.map((ex) => {
+              const last = ex.sets.length ? ex.sets[ex.sets.length - 1] : null;
+
+              const isRenaming = renamingId === ex.id;
+              const isConfirmDel = confirmDeleteExerciseId === ex.id;
+
+              const actions = (
+                <div className="flex items-center gap-1" onClick={(e)=>e.stopPropagation()}>
+                  {!isRenaming && !isConfirmDel && (
+                    <>
+                      <button className="btn-icon" onClick={() => { setRenamingId(ex.id); setRenameVal(ex.name); }}
+                        title="Μετονομασία" aria-label="Μετονομασία">✏️</button>
+                      <button className="btn-icon danger" onClick={() => setConfirmDeleteExerciseId(ex.id)}
+                        title="Διαγραφή" aria-label="Διαγραφή">🗑</button>
+                    </>
+                  )}
+                  {isRenaming && (
+                    <>
+                      <button className="btn-icon" onClick={() => handleRenameExercise(ex.id)} title="Αποθήκευση" aria-label="Αποθήκευση">💾</button>
+                      <button className="btn-icon" onClick={() => { setRenamingId(null); setRenameVal(""); }} title="Άκυρο" aria-label="Άκυρο">✖</button>
+                    </>
+                  )}
+                  {isConfirmDel && (
+                    <>
+                      <button className="btn-icon danger" onClick={() => handleDeleteExercise(ex.id)} title="Ναι, διαγραφή" aria-label="Ναι, διαγραφή">✔</button>
+                      <button className="btn-icon" onClick={() => setConfirmDeleteExerciseId(null)} title="Όχι" aria-label="Όχι">✖</button>
+                    </>
+                  )}
+                </div>
+              );
+
+              const titleSlot = isRenaming ? (
+                <div className="flex items-center gap-2" onClick={(e)=>e.stopPropagation()}>
+                  <input
+                    className="input"
+                    value={renameVal}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRenameExercise(ex.id);
+                      if (e.key === "Escape") { setRenamingId(null); setRenameVal(""); }
+                    }}
+                    autoFocus
+                  />
+                </div>
+              ) : undefined;
+
+              return (
+                <ExerciseCard key={ex.id} title={ex.name} titleSlot={titleSlot} actions={actions}>
+                  {ex.sets.length > 0 ? (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr style={{color:"#6b7280"}}>
+                          <th className="text-left py-1">#</th>
+                          <th className="text-left py-1">Κιλά</th>
+                          <th className="text-left py-1">Επαναλήψεις</th>
+                          <th className="text-left py-1">Σχόλιο</th>
+                          <th className="text-right py-1">Ενέργειες</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ex.sets.map((s, i) => {
+                          const isEditing = editingSet?.id === s.id;
+                          return (
+                            <tr key={s.id} className="border-t align-middle" style={{borderColor:"#e5e7eb"}}>
+                              <td className="py-2">{i + 1}</td>
+                              <td className="py-2">
+                                {isEditing ? (
+                                  <input className="input w-24" type="number" step="0.5"
+                                    value={editingSet?.weight ?? 0}
+                                    onChange={(e) => setEditingSet(curr => curr && ({ ...curr, weight: Number(e.target.value) }))} />
+                                ) : s.weight}
+                              </td>
+                              <td className="py-2">
+                                {isEditing ? (
+                                  <input className="input w-20" type="number"
+                                    value={editingSet?.reps ?? 0}
+                                    onChange={(e) => setEditingSet(curr => curr && ({ ...curr, reps: Number(e.target.value) }))} />
+                                ) : s.reps}
+                              </td>
+                              <td className="py-2">
+                                {isEditing ? (
+                                  <input className="input w-48" type="text"
+                                    value={editingSet?.note ?? ""}
+                                    onChange={(e) => setEditingSet(curr => curr && ({ ...curr, note: e.target.value }))} />
+                                ) : <span style={{color:"#6b7280"}}>{s.note}</span>}
+                              </td>
+                              <td className="py-2">
+                                <div className="flex items-center justify-end gap-1">
+                                  {!isEditing && confirmDeleteSetId !== s.id && (
+                                    <>
+                                      <button className="btn-icon" onClick={() => setEditingSet({ id: s.id, weight: s.weight, reps: s.reps, note: s.note ?? "" })} title="Επεξεργασία" aria-label="Επεξεργασία">✏️</button>
+                                      <button className="btn-icon danger" onClick={() => setConfirmDeleteSetId(s.id)} title="Διαγραφή" aria-label="Διαγραφή">🗑</button>
+                                    </>
+                                  )}
+                                  {isEditing && (
+                                    <>
+                                      <button className="btn-icon" onClick={handleSaveSet} title="Αποθήκευση" aria-label="Αποθήκευση">💾</button>
+                                      <button className="btn-icon" onClick={() => setEditingSet(null)} title="Άκυρο" aria-label="Άκυρο">✖</button>
+                                    </>
+                                  )}
+                                  {confirmDeleteSetId === s.id && (
+                                    <>
+                                      <button className="btn-icon danger" onClick={handleDeleteSet} title="Ναι, διαγραφή" aria-label="Ναι, διαγραφή">✔</button>
+                                      <button className="btn-icon" onClick={() => setConfirmDeleteSetId(null)} title="Όχι" aria-label="Όχι">✖</button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="text-sm" style={{color:"#6b7280"}}>Δεν υπάρχουν σετ για αυτή την άσκηση.</div>
+                  )}
+
+                  <div className="pt-3">
+                    <SetRow
+                      lastSet={last ? { weight: last.weight, reps: last.reps } : undefined}
+                      history={ex.sets.map(s => ({ weight: s.weight, reps: s.reps, note: s.note ?? "" }))}
+                      onSubmit={(data) => handleAddSet(ex.id, data)}
+                    />
+                  </div>
+                </ExerciseCard>
+              );
+            })}
+          </div>
+
+          {/* Floating Add Button */}
+          <button
+            className="fab"
+            onClick={() => document.getElementById("add-exercise-input")?.focus()}
+            title="Πρόσθεσε άσκηση"
+            aria-label="Πρόσθεσε άσκηση"
+          >＋</button>
+        </>
+      )}
+
+      {!loading && !error && !day && (
+        <EmptyState
+          title="Δεν βρέθηκε προπόνηση για αυτή την ημέρα"
+          subtitle="Δημιούργησε νέα ημέρα και πρόσθεσε ασκήσεις."
+          action={<InlineAddExercise onAdd={async () => alert("Ορίστε endpoint δημιουργίας Day στο API σας και καλέστε το εδώ.")} />}
+        />
+      )}
+
+      <style jsx global>{`
+        .day-page { background:#f7f7f8 !important; color:#0f172a !important; }
+        .day-page .card,
+        .day-page table, .day-page tr, .day-page td, .day-page th { background:#ffffff !important; }
+        .day-page .input,
+        .day-page input, .day-page textarea, .day-page select {
+          background:#ffffff !important; color:#111827 !important;
+          border:1px solid #d1d5db !important; border-radius:12px;
+        }
+        .day-page .btn-secondary, .day-page .btn-primary,
+        .day-page .chip, .day-page .badge {
+          background:#ffffff !important; color:#0f172a !important; border:1px solid #e5e7eb !important;
+        }
+        .day-page .btn-primary { background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; }
+      `}</style>
+    </div>
+  );
+}
+
+
+===== FILE: components/SetRow.tsx =====
+(size=3651B sha256=faa547a4d183d9a8c606d403c6be03893d99e82ab411bb26990e6ac966ef70af)
+// components/SetRow.tsx
+"use client";
+
+import { useState } from "react";
+import type { SetInput } from "@/lib/types";
+
+type Props = {
+  lastSet?: { weight: number; reps: number };
+  onSubmit: (data: SetInput) => void | Promise<void>;
+  /** προαιρετικά αρχικές τιμές (αν το χρησιμοποιείς και για edit) */
+  initial?: Partial<SetInput>;
+  submitLabel?: string;
+};
+
+export default function SetRow({
+  lastSet,
+  onSubmit,
+  initial,
+  submitLabel = "➕",
+}: Props) {
+  const [weight, setWeight] = useState<number | "">(initial?.weight ?? "");
+  const [reps, setReps] = useState<number | "">(initial?.reps ?? "");
+  const [note, setNote] = useState<string>(initial?.note ?? "");
+
+  function quickFill() {
+    if (weight === "" && lastSet) setWeight(lastSet.weight);
+    if (reps === "" && lastSet) setReps(lastSet.reps);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const w = typeof weight === "string" ? Number(weight) : weight;
+    const r = typeof reps === "string" ? Number(reps) : reps;
+    if (w == null || r == null || Number.isNaN(w) || Number.isNaN(r)) return;
+    await onSubmit({ weight: w, reps: r, note: note.trim() || null });
+    setReps("");
+    setNote("");
+  }
+
+  return (
+    <form className="sr-form" onSubmit={handleSubmit} onFocus={quickFill}>
+      {/* Κιλά */}
+      <label className="sr-field">
+        <span className="sr-label">Κιλά</span>
+        <input
+          className="input"
+          name="weight"
+          type="number"
+          step="0.5"
+          inputMode="decimal"
+          placeholder={lastSet ? String(lastSet.weight) : "0"}
+          value={weight}
+          onChange={(e) => setWeight(e.target.value === "" ? "" : Number(e.target.value))}
+        />
+      </label>
+
+      {/* Επαν. */}
+      <label className="sr-field">
+        <span className="sr-label">Επαν.</span>
+        <input
+          className="input"
+          name="reps"
+          type="number"
+          inputMode="numeric"
+          placeholder={lastSet ? String(lastSet.reps) : "0"}
+          value={reps}
+          onChange={(e) => setReps(e.target.value === "" ? "" : Number(e.target.value))}
+        />
+      </label>
+
+      {/* submit */}
+      <button type="submit" className="btn-primary sr-submit" aria-label="Προσθήκη">
+        {submitLabel}
+      </button>
+
+      {/* Σχόλιο (full-width στο κινητό) */}
+      <label className="sr-field sr-note">
+        <span className="sr-label">Σχόλιο</span>
+        <input
+          className="input"
+          name="note"
+          type="text"
+          inputMode="text"
+          enterKeyHint="done"
+          placeholder="π.χ. Με δυσκολία, PR, Καθαρό…"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+
+      <style jsx>{`
+        /* βασικό layout */
+        .sr-form {
+          display: grid;
+          gap: 10px;
+          grid-template-columns: 140px 140px auto; /* weight | reps | submit */
+          align-items: end;
+        }
+        .sr-field { display: grid; gap: 6px; }
+        .sr-label { font-size: 12px; color: #6b7280; }
+        .sr-submit { height: 42px; border-radius: 12px; padding: 0 14px; }
+        .input { height: 42px; }
+
+        /* το note μπαίνει από κάτω και πιάνει όλο το πλάτος */
+        .sr-note { grid-column: 1 / -1; }
+
+        /* mobile-first */
+        @media (max-width: 640px) {
+          .sr-form {
+            grid-template-columns: 1fr 1fr auto;
+          }
+        }
+      `}</style>
+    </form>
+  );
+}
+
+
+
+===== FILE: components/ExerciseCard.tsx =====
+(size=2001B sha256=56b8b21c6966c3fb0a928753df5800e12a64423ebe3c4267c1b2038faff75ff4)
+"use client";
+import { ReactNode, useState } from "react";
+
+export default function ExerciseCard({
+  title, titleSlot, children, actions, defaultOpen = false,
+}: {
+  title?: string;
+  titleSlot?: ReactNode;
+  children: ReactNode;
+  actions?: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`card card-ex ${open ? "is-open" : ""}`}>
+      <button
+        type="button"
+        className="card-head"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+      >
+        <div className="min-w-0 text-left flex-1">
+          {titleSlot ?? <h3 className="truncate text-base md:text-lg font-semibold">{title}</h3>}
+        </div>
+        <div className="flex items-center gap-2">
+          {actions}
+          <span aria-hidden className={`chev ${open ? "rot" : ""}`}>▾</span>
+        </div>
+      </button>
+
+      {open && <div className="mt-3">{children}</div>}
+
+      <style jsx>{`
+        .card-ex{
+          position:relative; background:#fff;
+          border:1px solid #e5e7eb; border-radius:14px;
+          padding:14px; margin:8px 0;
+          box-shadow:0 1px 2px rgba(17,24,39,.05);
+        }
+        .card-ex:hover{ box-shadow:0 2px 8px rgba(17,24,39,.07) }
+
+        /* Λεπτή παστέλ λωρίδα ΜΟΝΟ όταν είναι ανοιχτή */
+        .card-ex::before{
+          content:""; position:absolute; left:8px; top:10px; bottom:10px;
+          width:2px; background:#cbd5e1; border-radius:2px;
+          opacity:0; transition:opacity .15s ease, background-color .15s ease;
+        }
+        .card-ex.is-open::before{ opacity:1; background:#c7d2fe } /* indigo-200, διακριτικό */
+
+        .card-head{ display:flex; align-items:center; width:100%;
+          gap:12px; background:transparent; border:0; padding:2px 0 2px 6px }
+        .chev{ display:inline-block; transition:transform .18s ease }
+        .chev.rot{ transform:rotate(180deg) }
+      `}</style>
+    </div>
+  );
+}
+
+
+===== FILE: styles/globals.css =====
+(size=5596B sha256=3bb76b9042e60573f2dd22197866a8b914ad163207f6f2701afad6a0c9411252)
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========== Global Theme & Base =========== */
+:root{
+  --bg:#f7f7f8; --text:#0f172a; --muted:#6b7280;
+  --card:#ffffff; --border:#e5e7eb; --primary:#2563eb;
+}
+
+/* Προαιρετικά dark vars αν τα χρειαστούμε αλλού */
+html[data-theme="dark"], html.dark{
+  --bg:#0b1220; --text:#e5e7eb; --muted:#94a3b8;
+  --card:#0f172a; --border:#1f2937; --primary:#60a5fa;
+}
+
+*{ box-sizing:border-box }
+html,body{ padding:0; margin:0 }
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* =========== Primitives (SCOPED στη σελίδα ημέρας) =========== */
+.day-page .card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px;
+  box-shadow:0 1px 2px rgba(17,24,39,.05);
+}
+
+.day-page .input{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:8px 12px;
+  outline:0;
+}
+.day-page .input::placeholder{ color:#9ca3af }
+
+.day-page .btn-primary{
+  background:var(--primary);
+  color:#fff;
+  border:1px solid var(--primary);
+  border-radius:12px;
+  padding:8px 12px;
+}
+.day-page .btn-primary:hover{ filter:brightness(.97) }
+
+.day-page .btn-secondary{
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:8px 12px;
+}
+.day-page .btn-secondary:hover{ background:#f3f4f6 }
+
+.day-page .btn-icon{
+  width:44px; height:44px; border-radius:9999px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--card); border:1px solid var(--border); font-size:18px;
+}
+.day-page .btn-icon:hover{ background:#f8fafc }
+.day-page .btn-icon.danger, .day-page .btn-secondary.danger{ border-color:#ef4444; color:#ef4444 }
+.day-page .btn-primary.danger{ background:#ef4444; border-color:#ef4444 }
+
+.day-page .badge, .day-page .chip{
+  display:inline-flex; align-items:center;
+  background:var(--card); color:var(--text);
+  border:1px solid var(--border);
+  border-radius:9999px; padding:4px 10px; font-size:12px;
+}
+
+/* Floating Add Button μόνο στη day page */
+.day-page .fab{
+  position:fixed; right: max(16px, env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width:56px; height:56px; border-radius:9999px;
+  background:var(--primary); color:#fff; border:1px solid var(--primary);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 8px 20px rgba(0,0,0,.18);
+  z-index: 70; font-size: 28px; line-height: 1;
+}
+
+/* Actions column πάντα δεξιά στη day page */
+.day-page table{ width:100%; border-collapse:separate; border-spacing:0 }
+.day-page th:last-child,
+.day-page td:last-child{
+  text-align:right !important;
+  width:1%;
+  white-space:nowrap;
+}
+.day-page td:last-child > .actions{
+  display:flex; justify-content:flex-end; gap:8px; width:100%;
+}
+
+/* Mobile tweaks */
+@media (max-width: 640px){
+  .day-page .card{ padding:12px; border-radius:14px }
+  .day-page table th, .day-page table td{ padding:10px 6px }
+}
+
+/* === MOBILE-APP LOOK === */
+.btn-icon{
+  width:44px; height:44px; border-radius:9999px;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:#fff; border:1px solid #e5e7eb; font-size:18px;
+}
+.btn-icon:hover{ background:#f8fafc }
+.btn-icon.danger{ border-color:#ef4444; color:#ef4444 }
+
+.card{ border-radius:16px; border:1px solid #e5e7eb; background:#fff; padding:14px }
+
+.fab{
+  position:fixed; right: max(16px, env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width:56px; height:56px; border-radius:9999px;
+  background:#2563eb; color:#fff; border:1px solid #2563eb;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 8px 20px rgba(0,0,0,.18);
+  z-index: 70;
+  font-size: 28px; line-height: 1;
+}
+
+@media (max-width: 640px){
+  .day-page{ padding-top: 12px; }
+  .card{ padding:12px; border-radius:14px }
+  table th, table td{ padding:10px 6px }
+}
+
+
+/* --- Mobile-first app feel tweaks --- */
+.day-page .dp-header { border-bottom: 1px solid var(--border); }
+.day-page .card { box-shadow: 0 6px 20px rgba(0,0,0,.05); }
+.day-page .btn-icon { width:40px; height:40px; }
+.day-page .fab {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width: 60px; height: 60px; border-radius: 9999px;
+  font-size: 34px; line-height: 1;
+}
+
+/* --- Mobile typing UX --- */
+@media (max-width: 640px){
+  /* Αποτρέπει το iOS auto-zoom στα inputs */
+  .day-page input, .day-page textarea, .day-page select { font-size: 16px; }
+
+  /* Κάνει τη φόρμα προσθήκης σετ να “κολλάει” στο κάτω μέρος */
+  .day-page .addset {
+    position: sticky;
+    bottom: calc(env(safe-area-inset-bottom) + 0px);
+    background: var(--bg);
+    padding: 8px 6px 10px;
+    margin-top: 8px;
+    box-shadow: 0 -6px 20px rgba(0,0,0,.06);
+    border-top: 1px solid var(--border);
+    z-index: 40;
+  }
+  .day-page .addset .input, .day-page .addset .btn-primary { height: 44px; }
+
+  /* Όταν έχει focus κάποιο πεδίο, δώσε λίγο emphasize */
+  .day-page .addset.is-focused { box-shadow: 0 -10px 28px rgba(0,0,0,.10); }
+}
+
+/* Κάνει το section να μην κρύβεται κάτω από το sticky */
+.day-page .ex-card { scroll-margin-bottom: 120px; }
+
+
+
+===== FILE: lib/types.ts =====
+(size=665B sha256=7846755a680b1a7fb714f5bd603f2560a5364215d7c8747598028170c56cd618)
+// lib/types.ts
+import { z } from "zod";
+
+export type ID = string;
+
+export type SetModel = {
+  id: ID;
+  weight: number;
+  reps: number;
+  note?: string | null;
+};
+
+export type ExerciseModel = {
+  id: ID;
+  name: string;
+  sets: SetModel[];
+};
+
+export type WorkoutDayModel = {
+  id: ID;
+  date: string; // YYYY-MM-DD or ISO date
+  exercises: ExerciseModel[];
+  totals?: {
+    setsCount: number;
+    volume: number; // sum(weight * reps)
+  };
+};
+
+export const SetSchema = z.object({
+  weight: z.number().min(0).max(10000),
+  reps: z.number().min(1).max(1000),
+  note: z.string().max(200).optional().nullable(),
+});
+
+export type SetInput = z.infer<typeof SetSchema>;
+
+
+===== FILE: lib/api.ts =====
+(size=3665B sha256=b32c12e52bac4d3fcb00925a7d62131bb3aaa8a7e1775c91734ad61d253382c4)
+// lib/api.ts
+import { WorkoutDayModel, SetInput, ExerciseModel } from "./types";
+
+async function j<T>(res: Response): Promise<T> {
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<T>;
+}
+
+function nextDay(date: string): string {
+  const d = new Date(date + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  return [
+  d.getFullYear(),
+  String(d.getMonth()+1).padStart(2,"0"),
+  String(d.getDate()).padStart(2,"0")
+].join("-");
+}
+
+export async function fetchDay(date: string): Promise<WorkoutDayModel | null> {
+  const from = date;
+  const to = nextDay(date);
+  const url = `/api/workouts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(await res.text());
+  const days = (await res.json()) as any[];
+  const d = days && days.length ? days[0] : null;
+  if (!d) return null;
+  const iso = String(d.date).slice(0, 10);
+  return {
+    id: d.id,
+    date: iso,
+    exercises: (d.exercises || [])
+      .filter((e: any) => !e.deletedAt)
+      .map((e: any) => ({
+        id: e.id,
+        name: e.nameGr || e.nameEn || "—",
+        sets: (e.sets || []).map((s: any) => ({
+          id: s.id,
+          weight: s.kg ?? 0,
+          reps: s.reps ?? 0,
+          note: s.notes ?? null,
+        })),
+      })),
+  };
+}
+
+export async function fetchWorkouts(from: string, to: string): Promise<WorkoutDayModel[]> {
+  const url = `/api/workouts?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  return j<WorkoutDayModel[]>(res);
+}
+
+export async function addExercise(dayId: string, name: string): Promise<ExerciseModel> {
+  const res = await fetch(`/api/workouts/${dayId}/exercises`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nameGr: name }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const e = await res.json();
+  return { id: e.id, name: e.nameGr || e.nameEn || "—", sets: (e.sets || []).map((s: any) => ({ id: s.id, weight: s.kg ?? 0, reps: s.reps ?? 0, note: s.notes ?? null })) };
+}
+
+export async function addSet(exerciseId: string, input: SetInput) {
+  const res = await fetch(`/api/exercises/${exerciseId}/sets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kg: input.weight, reps: input.reps, notes: input.note ?? null }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json().catch(() => ({}));
+}
+
+// === Edit/Delete helpers ===
+export async function renameExercise(exerciseId: string, name: string): Promise<void> {
+  const res = await fetch(`/api/exercises/${exerciseId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nameGr: name }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function deleteExercise(exerciseId: string): Promise<void> {
+  const res = await fetch(`/api/exercises/${exerciseId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function updateSet(setId: string, input: SetInput): Promise<void> {
+  const res = await fetch(`/api/sets/${setId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kg: input.weight, reps: input.reps, notes: input.note ?? null }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function deleteSet(setId: string): Promise<void> {
+  const res = await fetch(`/api/sets/${setId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+
+# End
